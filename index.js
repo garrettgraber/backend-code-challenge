@@ -1,3 +1,5 @@
+'use strict';
+
 const parser = require('xml2json');
 const _ = require('lodash');
 const express = require('express');
@@ -15,35 +17,38 @@ app.get('/v1/api/term/:tid/longest-preview-media-url', function(req, res, next) 
 
 	console.log("Param sent: ", req.params);
 
-	findLongestPreviewMediaUrl(req.params.tid).then(function(response) {
+	const PreviewMediaPromise = findLongestPreviewMedia(req.params.tid);
 
-		console.log("response: ", response);
+	PreviewMediaPromise.then(function(response) {
+
+		console.log("response in then: ", response);
 	
 		res.json(response);
 
+	}).catch(function(error) {
+
+		console.log("error in endpoint: ", error);
+
+		let errorStatusCodeArray = error.toString().split(':');
+		let errorStatusCodeString = errorStatusCodeArray[ errorStatusCodeArray.length - 1 ];
+		let httpErrorCode = parseInt(errorStatusCodeString);
+
+		console.log("httpErrorCode: ", httpErrorCode);
+
+		if(httpErrorCode >= 200) {
+
+			res.sendStatus(httpErrorCode);
+
+		} else {
+
+			res.json({
+				message: "Information Response",
+				code: httpErrorCode
+			});
+
+		}
+
 	});
-
-	// console.log("LongestPreview: ", LongestPreview);
-
-	// request.getAsync(apiCallOptions('media', req.params.tid)).then(function(response) {
-
-		// console.log("response[0].body: ", response[0].body);
-		// console.log("response[1]: ", response[1]);
-
-		// const LongestDuration = getVideoData(response[1]);
-		// console.log("LongestDuration final: ", LongestDuration);
-		// res.json(LongestDuration);
-
-		// const firstTermTid = getVocabularyDataTid(response[1]);
-		// console.log("firstTermTid: ", firstTermTid);
-		// res.json(firstTermTid);
-
-		// const mediaResponse = response[1];
-		// const mediaUrl = getMediaUrl(mediaResponse);
-		// console.log("Media url: ", mediaUrl);
-		// res.json(mediaUrl);
-
-	// });
 
 });
 
@@ -59,12 +64,25 @@ function apiCall(endPointType, tempId) {
 
     return request.getAsync(apiCallOptions(endPointType, tempId)).then(function(response) {
 
+    	console.log("status code: ", response[0].statusCode);
+    	console.log("response in getAsync: ", turnResponseToJSObject(response[1]) );
+
+    	if( parseInt(turnResponseToJSObject(response[1]).response.totalCount) === 0 ) {
+
+	    	response[0].statusCode = 404;
+
+    	}
+
+    	// response[0].statusCode = 418;
+
     	if(response[0].statusCode === 200) {
 
     		return turnResponseToJSObject(response[1]);
 
     	} else {
-    		throw new Error('HTTP Error: ' + response.statusCode);
+
+    		throw new Error('HTTP Error:' + response[0].statusCode);
+
     	}
 
     });
@@ -75,9 +93,6 @@ function apiCall(endPointType, tempId) {
 function apiCallOptions(endPointType, tempId) {
 
 	const ApiUrlBase = {
-		// vocabulary: 'http://d6api.gaia.com/vocabulary/1/{tid}',
-		// videos: 'http://d6api.gaia.com/videos/term/{tid}',
-		// media: 'http://d6api.gaia.com/media/{previewNid}'
 		vocabulary: 'http://d6api.gaia.com/vocabulary/1/',
 		videos: 'http://d6api.gaia.com/videos/term/',
 		media: 'http://d6api.gaia.com/media/'
@@ -87,14 +102,14 @@ function apiCallOptions(endPointType, tempId) {
         url: ApiUrlBase[endPointType] + tempId,
         method: "GET",
         headers: {
-            'content-type': 'application/json'
+            'Content-Type': 'application/json'
         }
     };
 
 };
 
 
-function findLongestPreviewMediaUrl(tempTid) {
+function findLongestPreviewMedia(tempTid) {
 
 	const ResultObject = {
 		bcHLS: '',
@@ -103,9 +118,10 @@ function findLongestPreviewMediaUrl(tempTid) {
 		previewDuration: 0
 	};
 
-	return apiCall('vocabulary', tempTid).then(function(vocabularyResult) {
+	return apiCall('vocabulary', tempTid).then(function(vocabularyResult, error) {
 
 		console.log("vocabularyResult: ", vocabularyResult);
+		console.log("vocabulary error: ", error);
 
 		const firstTermTid = getVocabularyDataTid(vocabularyResult);
 
@@ -113,9 +129,10 @@ function findLongestPreviewMediaUrl(tempTid) {
 
 		return apiCall('videos', firstTermTid);
 
-	}).then(function(videoResult) {
+	}).then(function(videoResult, error) {
 
 		console.log("videoResult: ", videoResult);
+		console.log("video error: ", error);
 
 		const LongestDurationObject = getVideoData(videoResult);
 		const longestDurationNid = LongestDurationObject.previewNid;
@@ -125,15 +142,22 @@ function findLongestPreviewMediaUrl(tempTid) {
 
 		return apiCall('media', longestDurationNid);
 
-	}).then(function(mediaResult) {
+	}).then(function(mediaResult, error) {
 
 		console.log("mediaResult: ", mediaResult);
+		console.log("media error: ", error);
 
 		const mediaUrl = getMediaUrl(mediaResult);
 
 		ResultObject.bcHLS = mediaUrl;
 
-	}).return(ResultObject);
+	}).return(ResultObject).catch(function(error) {
+
+		console.log("error: ", error);
+
+		throw error;
+
+	});
 
 };
 
@@ -148,7 +172,7 @@ function getVocabularyDataTid(dataResponse) {
 function getVideoData(dataResponse) {
 
 	const videoTitleArray = dataResponse.response.titles.title;
-	const videoArrayHasPreview = videoTitleArray.filter(function( obj ) {
+	const videoArrayHasPreview = videoTitleArray.filter(function(obj) {
 	    return obj.hasOwnProperty('preview');
 	});
 
