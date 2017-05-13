@@ -15,25 +15,25 @@ app.use(bodyParser.json());
 
 app.get('/v1/api/term/:tid/longest-preview-media-url', function(req, res, next) {
 
-	console.log("Param sent: ", req.params);
+	// console.log("Param sent: ", req.params);
 
 	const PreviewMediaPromise = findLongestPreviewMedia(req.params.tid);
 
 	PreviewMediaPromise.then(function(response) {
 
-		console.log("response in then: ", response);
+		// console.log("response in then: ", response);
 	
 		res.json(response);
 
 	}).catch(function(error) {
 
-		console.log("error in endpoint: ", error);
+		// console.log("error in endpoint: ", error);
 
 		let errorStatusCodeArray = error.toString().split(':');
 		let errorStatusCodeString = errorStatusCodeArray[ errorStatusCodeArray.length - 1 ];
 		let httpErrorCode = parseInt(errorStatusCodeString);
 
-		console.log("httpErrorCode: ", httpErrorCode);
+		// console.log("httpErrorCode: ", httpErrorCode);
 
 		if(httpErrorCode >= 200) {
 
@@ -64,8 +64,8 @@ function apiCall(endPointType, tempId) {
 
     return request.getAsync(apiCallOptions(endPointType, tempId)).then(function(response) {
 
-    	console.log("status code: ", response[0].statusCode);
-    	console.log("response in getAsync: ", turnResponseToJSObject(response[1]) );
+    	// console.log("status code: ", response[0].statusCode);
+    	// console.log("response in getAsync: ", turnResponseToJSObject(response[1]) );
 
     	if( parseInt(turnResponseToJSObject(response[1]).response.totalCount) === 0 ) {
 
@@ -120,19 +120,18 @@ function findLongestPreviewMedia(tempTid) {
 
 	return apiCall('vocabulary', tempTid).then(function(vocabularyResult, error) {
 
-		console.log("vocabularyResult: ", vocabularyResult);
-		console.log("vocabulary error: ", error);
+		// console.log("vocabularyResult: ", vocabularyResult);
+		// console.log("vocabulary error: ", error);
 
 		const firstTermTid = getVocabularyDataTid(vocabularyResult);
-
 		ResultObject.titleNid = parseInt(firstTermTid);
 
 		return apiCall('videos', firstTermTid);
 
 	}).then(function(videoResult, error) {
 
-		console.log("videoResult: ", videoResult);
-		console.log("video error: ", error);
+		// console.log("videoResult: ", videoResult);
+		// console.log("video error: ", error);
 
 		const LongestDurationObject = getVideoData(videoResult);
 		const longestDurationNid = LongestDurationObject.previewNid;
@@ -144,8 +143,8 @@ function findLongestPreviewMedia(tempTid) {
 
 	}).then(function(mediaResult, error) {
 
-		console.log("mediaResult: ", mediaResult);
-		console.log("media error: ", error);
+		// console.log("mediaResult: ", mediaResult);
+		// console.log("media error: ", error);
 
 		const mediaUrl = getMediaUrl(mediaResult);
 
@@ -153,7 +152,7 @@ function findLongestPreviewMedia(tempTid) {
 
 	}).return(ResultObject).catch(function(error) {
 
-		console.log("error: ", error);
+		// console.log("error: ", error);
 
 		throw error;
 
@@ -180,7 +179,7 @@ function getVideoData(dataResponse) {
 		return parseFloat(o.preview.duration);
 	});
 
-	console.log("TitleWithLongestDuration: ", TitleWithLongestDuration);
+	// console.log("TitleWithLongestDuration: ", TitleWithLongestDuration);
 
 	const longestDurationValue = Math.max.apply(Math, videoArrayHasPreview.map(function(o){
 		return parseFloat(o.preview.duration);
@@ -188,13 +187,13 @@ function getVideoData(dataResponse) {
 
 	const longestDurationNid = TitleWithLongestDuration.preview.nid;
 
-	console.log("longestDurationValue: ", longestDurationValue);
-	console.log("videoArrayHasPreview.length: ", videoArrayHasPreview.length);
-	console.log("videoTitleArray.length: ", videoTitleArray.length);
+	// console.log("longestDurationValue: ", longestDurationValue);
+	// console.log("videoArrayHasPreview.length: ", videoArrayHasPreview.length);
+	// console.log("videoTitleArray.length: ", videoTitleArray.length);
 
-	const durationMatch = (parseFloat(TitleWithLongestDuration.preview.duration) === longestDurationValue)? true : false;
+	// const durationMatch = (parseFloat(TitleWithLongestDuration.preview.duration) === longestDurationValue)? true : false;
 
-	console.log("Duration Match: ", durationMatch);
+	// console.log("Duration Match: ", durationMatch);
 
 	return {
 		previewNid: longestDurationNid,
@@ -206,11 +205,7 @@ function getVideoData(dataResponse) {
 
 function getMediaUrl(dataResponse) {
 
-	const mediaUrl = dataResponse.response.mediaUrls.bcHLS;
-
-	console.log("Media url: ", mediaUrl);
-
-	return mediaUrl;
+	return dataResponse.response.mediaUrls.bcHLS;
 
 };
 
@@ -220,3 +215,4 @@ function turnResponseToJSObject(tempResponse) {
 	return JSON.parse(parser.toJson(tempResponse));
 
 };
+
