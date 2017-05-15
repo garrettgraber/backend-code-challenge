@@ -8,32 +8,27 @@ const Promise = require('bluebird');
 const request = Promise.promisify(require("request"), {multiArgs: true});
 Promise.promisifyAll(request, {multiArgs: true});
 
-const serverPort = 8100;
 const app = express();
+app.set('port', 8100);
 
 app.use(bodyParser.json());
 
+// Endpoint to hit
 app.get('/v1/api/term/:tid/longest-preview-media-url', function(req, res, next) {
 
-	// console.log("Param sent: ", req.params);
-
+	// Promise to find longest preview media
 	const PreviewMediaPromise = findLongestPreviewMedia(req.params.tid);
 
 	PreviewMediaPromise.then(function(response) {
-
-		// console.log("response in then: ", response);
 	
 		res.json(response);
 
 	}).catch(function(error) {
 
-		// console.log("error in endpoint: ", error);
-
+		// Error parsing
 		let errorStatusCodeArray = error.toString().split(':');
 		let errorStatusCodeString = errorStatusCodeArray[ errorStatusCodeArray.length - 1 ];
 		let httpErrorCode = parseInt(errorStatusCodeString);
-
-		// console.log("httpErrorCode: ", httpErrorCode);
 
 		if(httpErrorCode >= 200) {
 
@@ -53,19 +48,16 @@ app.get('/v1/api/term/:tid/longest-preview-media-url', function(req, res, next) 
 });
 
 
-app.listen(serverPort, function () {
+app.listen(app.get('port'), function() {
 
-	console.log('Backend code challenge app listening on port http://localhost:' +  serverPort);
+	console.log('Backend code challenge app listening on port http://localhost:' +  app.get('port'));
 
 });
 
-
+// Function that calls the API. Takes an endpoint and an Id
 function apiCall(endPointType, tempId) {
 
     return request.getAsync(apiCallOptions(endPointType, tempId)).then(function(response) {
-
-    	// console.log("status code: ", response[0].statusCode);
-    	// console.log("response in getAsync: ", turnResponseToJSObject(response[1]) );
 
     	if( parseInt(turnResponseToJSObject(response[1]).response.totalCount) === 0 ) {
 
@@ -73,6 +65,7 @@ function apiCall(endPointType, tempId) {
 
     	}
 
+    	// Uncomment the line below to test various errors
     	// response[0].statusCode = 418;
 
     	if(response[0].statusCode === 200) {
@@ -89,7 +82,7 @@ function apiCall(endPointType, tempId) {
 
 };
 
-
+// Builds options for the api call, setting the url + id value
 function apiCallOptions(endPointType, tempId) {
 
 	const ApiUrlBase = {
@@ -108,7 +101,7 @@ function apiCallOptions(endPointType, tempId) {
 
 };
 
-
+// Finds the longest preview media.  Promise chain that calls multiple endpoints in succession.
 function findLongestPreviewMedia(tempTid) {
 
 	const ResultObject = {
@@ -118,41 +111,36 @@ function findLongestPreviewMedia(tempTid) {
 		previewDuration: 0
 	};
 
+	// calls vocabulary endpoint
 	return apiCall('vocabulary', tempTid).then(function(vocabularyResult, error) {
 
-		// console.log("vocabularyResult: ", vocabularyResult);
-		// console.log("vocabulary error: ", error);
-
+		// finds the first term id
 		const firstTermTid = getVocabularyDataTid(vocabularyResult);
 		ResultObject.titleNid = parseInt(firstTermTid);
 
+		// calls the videos endpoint
 		return apiCall('videos', firstTermTid);
 
 	}).then(function(videoResult, error) {
 
-		// console.log("videoResult: ", videoResult);
-		// console.log("video error: ", error);
-
+		// finds the longest duration video
 		const LongestDurationObject = getVideoData(videoResult);
 		const longestDurationNid = LongestDurationObject.previewNid;
 
 		ResultObject.previewNid = parseInt(longestDurationNid);
-		ResultObject.previewDuration = parseInt(LongestDurationObject.previewDuration);
+		ResultObject.previewDuration = LongestDurationObject.previewDuration;
 
+		// calls the media endpoint
 		return apiCall('media', longestDurationNid);
 
 	}).then(function(mediaResult, error) {
 
-		// console.log("mediaResult: ", mediaResult);
-		// console.log("media error: ", error);
-
+		// gets the media url
 		const mediaUrl = getMediaUrl(mediaResult);
-
 		ResultObject.bcHLS = mediaUrl;
 
+		// Returns results. Catches errors.
 	}).return(ResultObject).catch(function(error) {
-
-		// console.log("error: ", error);
 
 		throw error;
 
@@ -160,14 +148,14 @@ function findLongestPreviewMedia(tempTid) {
 
 };
 
-
+// gets the vocabulary title id from the first term
 function getVocabularyDataTid(dataResponse) {
 
 	return dataResponse.response.terms.term[0].tid;
 
 };
 
-
+// gets the video preview with the longest duration and the preview nid
 function getVideoData(dataResponse) {
 
 	const videoTitleArray = dataResponse.response.titles.title;
@@ -179,37 +167,29 @@ function getVideoData(dataResponse) {
 		return parseFloat(o.preview.duration);
 	});
 
-	// console.log("TitleWithLongestDuration: ", TitleWithLongestDuration);
-
-	const longestDurationValue = Math.max.apply(Math, videoArrayHasPreview.map(function(o){
-		return parseFloat(o.preview.duration);
-	}));
-
+	// Extraneous method to find the longest duration of a preview video. Used to check TitleWithLongestDuration.
+	const longestDurationValue = Math.max.apply(Math, videoArrayHasPreview.map(o => parseFloat(o.preview.duration)));
 	const longestDurationNid = TitleWithLongestDuration.preview.nid;
+	const longestDuraionFound = parseFloat(TitleWithLongestDuration.preview.duration);
+	const durationCorrect = (longestDuraionFound === longestDuraionFound)? true : false;
 
-	// console.log("longestDurationValue: ", longestDurationValue);
-	// console.log("videoArrayHasPreview.length: ", videoArrayHasPreview.length);
-	// console.log("videoTitleArray.length: ", videoTitleArray.length);
-
-	// const durationMatch = (parseFloat(TitleWithLongestDuration.preview.duration) === longestDurationValue)? true : false;
-
-	// console.log("Duration Match: ", durationMatch);
+	console.log("Duration found with two methods is correct: ", durationCorrect);
 
 	return {
 		previewNid: longestDurationNid,
-		previewDuration: TitleWithLongestDuration.preview.duration
+		previewDuration: longestDuraionFound
 	};
 
 };
 
-
+// Gets the media url
 function getMediaUrl(dataResponse) {
 
 	return dataResponse.response.mediaUrls.bcHLS;
 
 };
 
-
+// Parses xml to JSON and then to a js object
 function turnResponseToJSObject(tempResponse) {
 
 	return JSON.parse(parser.toJson(tempResponse));
